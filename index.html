@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glasgow Empty Lands Mapper</title>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.css' rel='stylesheet' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js'></script>
+    <script src="https://npmcdn.com/@turf/turf/turf.min.js"></script>
+    <!-- Add Roboto font from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Roboto', sans-serif;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        /* Left sidebar styles */
+        #sidebar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 2;
+        }
+        
+        #search-container {
+            padding: 16px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        #search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+            font-size: 14px;
+        }
+        
+        #plots-list {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-height: calc(100vh - 150px);
+            overflow-y: auto;
+        }
+        
+        /* Right panel styles */
+        #right-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 2;
+        }
+        
+        .panel {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        
+        /* Selected land panel */
+        #selected-land-panel {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+        }
+        
+        #selected-land-info {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .coordinates {
+            font-family: monospace;
+            background-color: #f5f5f5;
+            padding: 6px 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-size: 13px;
+            color: #333;
+        }
+        
+        /* Plot item styles */
+        .plot-item {
+            background-color: #f8f9fa;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-left: 4px solid transparent;
+        }
+        
+        .plot-item:hover {
+            background-color: #f0f0f0;
+            transform: translateY(-2px);
+        }
+        
+        .plot-item.selected {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+        }
+        
+        .plot-item h4 {
+            margin: 0 0 6px 0;
+            font-size: 16px;
+            font-weight: 500;
+            color: #212121;
+        }
+        
+        .plot-item p {
+            margin: 4px 0;
+            font-size: 14px;
+            color: #616161;
+        }
+        
+        /* Typography */
+        h3 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 18px;
+            font-weight: 500;
+            color: #212121;
+        }
+        
+        h4 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-top: 0;
+        }
+        
+        /* Isochrone toggle button */
+        .isochrone-toggle {
+            margin: 0;
+            padding: 12px 16px;
+            background-color: #5a3fc0;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            transition: background-color 0.2s ease;
+        }
+        
+        .isochrone-toggle:hover {
+            background-color: #4a32a0;
+        }
+        
+        /* Score container */
+        .score-container {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .score-display {
+            display: flex;
+            align-items: center;
+            margin: 16px 0;
+        }
+        
+        .score-number {
+            font-size: 28px;
+            font-weight: 700;
+            margin-right: 16px;
+            min-width: 45px;
+            color: #212121;
+        }
+        
+        .score-bar {
+            flex-grow: 1;
+            height: 12px;
+            background-color: #f0f0f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 6px;
+        }
+        
+        .score-explanation {
+            font-size: 13px;
+            color: #757575;
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Left sidebar for search and plot list -->
+    <div id="sidebar">
+        <div id="search-container">
+            <h3>Glasgow Empty Lands</h3>
+            <input type="text" id="search-input" placeholder="Search plots...">
+        </div>
+        <div id="plots-list" class="panel">
+            <p>Loading plots...</p>
+        </div>
+    </div>
+    
+    <!-- Right panel for isochrone controls and results -->
+    <div id="right-panel">
+        <!-- Selected land info panel -->
+        <div id="selected-land-panel">
+            <h3>Selected Land</h3>
+            <div id="selected-land-info">
+                <p>No land selected. Click on a highlighted area to select.</p>
+            </div>
+        </div>
+        
+        <!-- Isochrone toggle button will be added here by JavaScript -->
+        <!-- Accessibility score will be added here by JavaScript -->
+    </div>
+
+    <script src="data-handler.js"></script>
+    <script src="ui-handler.js"></script>
+    <script src="isochrone-handler.js"></script>
+</body>
+
